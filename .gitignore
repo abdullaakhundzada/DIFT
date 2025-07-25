@@ -1,0 +1,6 @@
+*.ipynb
+cifar-10-python
+*.gz
+NOTES.md
+TODO.md
+__pycache__
