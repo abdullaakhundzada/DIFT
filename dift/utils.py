@@ -1,4 +1,4 @@
-import requests, tarfile, pickle, io, os, cv2
+import requests, tarfile, pickle, io, os, cv2, json
 import numpy as np
 
 def devectorize(
@@ -126,3 +126,58 @@ def load_cifar_dataset(
     del response, tar_file_buffer
 
     return cifar_dataset
+
+def store_cifar(cifar_dataset : dict, directory : str) -> None:
+    """
+    Saves the CIFAR dataset into the disk.
+
+    Args:
+        cifar_dataset : dict
+            The dataset formatted as a dictionary. Should
+            follow the structure of the load_cifar_dataset function.
+            Must have the foillowing hierarchy:
+                {
+                    "train" : {
+                        "images" : numpy.ndarray, 
+                        "labels" : numpy.ndarray,
+                        "files"  : list[str]
+                    },
+                    "test"  : {
+                        "images" : numpy.ndarray, 
+                        "labels" : numpy.ndarray,
+                        "files"  : list[str]
+                    }
+                }
+        directory : str
+            Path to the directory where the images and 
+            the labels will be stored in.
+    
+    Returns:
+        None
+    """
+    assert cifar_dataset.keys(), "Empty dataset dictionary has been passed!"
+    assert all([
+        key in {"train", "test", "val"} 
+        for key in cifar_dataset.keys()]), \
+        "Dataset keys do not match with the desired set of keys"
+
+    # If the files already exist, then the files will not be re-written
+    if all([os.path.exists(os.path.join(directory, key)) 
+            for key in cifar_dataset.keys()]):
+        return 
+    
+    for sub_n in cifar_dataset.keys():
+        sub_directory = os.path.join(directory, sub_n)
+        sub_dataset = cifar_dataset[sub_n]
+        if not os.path.exists(sub_directory):
+            os.makedirs(sub_directory)
+        
+        for image, filename in zip(sub_dataset["images"], sub_dataset["files"]):
+            cv2.imwrite(filename=os.path.join(sub_directory, filename), img=image)
+
+        label_dict = {
+            filename : int(label) for filename, label in 
+            zip(sub_dataset["files"], sub_dataset["labels"])}
+        
+        with open(os.path.join(directory, "{}.json".format(sub_n)), "w") as json_file:
+            json.dump(label_dict, json_file)
