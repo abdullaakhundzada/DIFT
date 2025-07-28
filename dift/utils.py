@@ -84,12 +84,12 @@ def load_cifar_dataset(
         "train" : {
             "images" : None, 
             "labels" : None,
-            "files"  : None
+            "files"  : []
         },
         "test"  : {
             "images" : None, 
             "labels" : None,
-            "files"  : None
+            "files"  : []
         }
     }
 
@@ -117,8 +117,7 @@ def load_cifar_dataset(
                 batch["labels"] = labels if batch["labels"] is None \
                     else np.hstack((batch["labels"], labels))
                 
-                batch["files" ] = files  if batch["files" ] is None \
-                    else batch["files"].extend(files)
+                batch["files"].extend(files)
 
                 print("Loaded {}\tdata into the dataset dictionary" \
                     .format(member_file_name))
