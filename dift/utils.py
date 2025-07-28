@@ -1,5 +1,6 @@
 import requests, tarfile, pickle, io, os, cv2, json
 import numpy as np
+from typing import Optional
 
 def devectorize(
         image: np.ndarray | list[np.ndarray], 
@@ -24,12 +25,9 @@ def devectorize(
     if type(image) == np.ndarray:
 
         if len(image.shape) == 1:
-            return cv2.cvtColor(
-                image                   \
-                    .reshape  ( shape ) \
-                    .transpose(1, 2, 0) , 
-                cv2.COLOR_RGB2BGR
-            ) 
+            return image            \
+                .reshape  ( shape ) \
+                .transpose(1, 2, 0) 
 
         elif len(image.shape) == 2:
             return np.array(
@@ -155,11 +153,6 @@ def store_cifar(cifar_dataset : dict, directory : str) -> None:
         None
     """
     assert cifar_dataset.keys(), "Empty dataset dictionary has been passed!"
-    assert all([
-        key in {"train", "test", "val"} 
-        for key in cifar_dataset.keys()]), \
-        "Dataset keys do not match with the desired set of keys"
-
     # If the files already exist, then the files will not be re-written
     if all([os.path.exists(os.path.join(directory, key)) 
             for key in cifar_dataset.keys()]):
@@ -180,3 +173,101 @@ def store_cifar(cifar_dataset : dict, directory : str) -> None:
         
         with open(os.path.join(directory, "{}.json".format(sub_n)), "w") as json_file:
             json.dump(label_dict, json_file)
+
+def split_dataset(
+        cifar_dataset : dict, 
+        ratio         : Optional[dict] = None, 
+        shuffle       : bool = True
+        )     -> dict :
+    """
+    Splits the dataset into multiple parts according to the given
+    ratio dictionary.
+
+    Args:
+        cifar_dataset: dict
+            The dataset given as a collection of sub-datasets
+            under different keys, i. e. "train", "validate".
+            Each sub-dataset must have "images", "labels" and "files" keys.
+        ratio: Optional[dict]
+            The final ratio of the sub-datasets. New keys can be added
+            other than the ones of the cifar_dataset argument.
+        shuffle : bool 
+            Whether to shuffle the indices or not. 
+            Optional, default is `True`
+
+    Returns:
+        dict:
+            The structure is almost the same as the cifar_dataset 
+            input dictionary; however, the values ,ay have been shuffled 
+            and the output is the split version of the input dataset
+            but split with approximate ratio.
+    """
+    images = None
+    labels = None
+    files  = []
+
+    if ratio is None:
+        ratio = {
+            "train"    : 0.65,
+            "val"      : 0.1,
+            "test"     : 0.1,
+            "finetune" : 0.15
+        }
+
+    # collect all portions of the dataset into monoblocks
+    for sub_d in cifar_dataset.keys():
+        sub_dataset = cifar_dataset[sub_d]
+        images = sub_dataset["images"] if images is None else \
+            np.vstack((images, sub_dataset["images"]))
+        labels = sub_dataset["labels"] if labels is None else \
+            np.hstack((labels, sub_dataset["labels"]))
+        files.extend(sub_dataset["files"])
+
+    files = np.array(files)
+
+    assert len(images) == len(labels) == len(files), \
+        "Sizes of image, label and filename arrays do not match!"
+
+    if shuffle:
+        indices = np.arange(len(labels))
+
+        np.random.shuffle(indices)
+
+        images = images[indices]
+        labels = labels[indices]
+        files  = files [indices]
+
+    key_list = list(ratio.keys())
+
+    ratio_sum = sum(ratio.values())
+    ratio_normalized = {key: ratio[key]/ratio_sum for key in key_list}
+
+
+    total_count = len(labels)
+    # assign max values to each key, initially with the minimum index value 0
+    max_idx = {key: 0 for key in key_list}
+
+    for key in key_list:
+        # each key must occupy an interval starting from the previous one
+        max_idx[key] = max(max_idx.values()) + int(total_count * ratio_normalized[key])
+
+    # if not all indexes are taken, assign the remainings to the last key
+    max_idx[key_list[-1]] = total_count 
+
+    # create tuples indicating the start and end of intervals
+    intervals = {}
+    for idx, key in enumerate(key_list):
+        intervals[key] = (0 if idx == 0 else max_idx[key_list[idx-1]], max_idx[key])
+
+    mean = np.mean(images / 255, axis=(0, 1, 2), keepdims=True)
+    std  = np.sqrt(((images / 255 - mean) ** 2).mean(axis=(0, 1, 2), keepdims=True))
+
+    print("For RGB Images:\nMean:\t{}\nSTD:\t{}".format(mean, std))
+
+    return {
+        key: {
+            "images" : images[intervals[key][0] : intervals[key][1]],
+            "labels" : labels[intervals[key][0] : intervals[key][1]],
+            "files"  : files [intervals[key][0] : intervals[key][1]].tolist()
+        } for key in key_list
+    }
