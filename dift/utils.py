@@ -2,6 +2,19 @@ import requests, tarfile, pickle, io, os, cv2, json
 import numpy as np
 from typing import Optional
 
+id2label : dict = {
+    0 : "airplane",
+    1 : "automobile",
+    2 : "bird",
+    3 : "cat",
+    4 : "deer",
+    5 : "dog",
+    6 : "frog",
+    7 : "horse",
+    8 : "ship",
+    9 : "truck"
+}
+
 def devectorize(
         image: np.ndarray | list[np.ndarray], 
         shape: tuple = (3, 32, 32) 
