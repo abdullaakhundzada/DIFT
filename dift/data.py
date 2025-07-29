@@ -1,8 +1,6 @@
 from typing import Literal
 import albumentations as alb
-import json, cv2, os
-from torch.utils.data import Dataset, DataLoader
-import torch
+import json, cv2, os, torch
 
 def load_default_transform(
         mode: Literal["train", "test"],
@@ -51,7 +49,7 @@ def load_default_transform(
             alb.ToTensorV2(),
             ])
 
-class CIFARDataset(Dataset):
+class CIFARDataset(torch.utils.data.Dataset):
     def __init__(
             self, 
             image_directory : str, 
@@ -86,7 +84,7 @@ class CIFARDataset(Dataset):
         with open(labels_path, "r") as labels_file:
             self.labels_dict = json.load(labels_file)
 
-        self.filenames = [os.path.join(image_directory, filename) 
+        self.filenames = [filename
             for filename in os.listdir(image_directory)
             if filename.endswith("jpg") or filename.endswith("png")]
         
