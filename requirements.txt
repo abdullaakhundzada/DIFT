@@ -1,3 +1,4 @@
 opencv-python~=4.12
 transformer_engine~=2.3
 torch~=2.7
+albumentations~=2.0
